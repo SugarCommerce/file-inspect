@@ -1,6 +1,6 @@
 {
   "name": "sugarcommerce/file-inspect",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Look at the bytes a file actually contains: executable signatures refused whatever the name, contents that disagree with the extension, archives carrying what you would not accept directly, and double extensions that hide the real one. Pure functions, no I/O, zero dependencies.",
   "type": "library",
   "license": "GPL-2.0-or-later",

@@ -31,7 +31,7 @@ final class Filename {
 	 * SVG are here because served from your own domain they execute script
 	 * in your origin.
 	 */
-	public const EXECUTABLE = array(
+	public const array EXECUTABLE = array(
 		'exe', 'scr', 'bat', 'cmd', 'com', 'msi', 'dll', 'cpl', 'jar',
 		'js', 'mjs', 'vbs', 'vbe', 'wsf', 'wsh', 'ps1', 'psm1',
 		'sh', 'bash', 'zsh', 'app', 'dmg', 'pkg', 'deb', 'rpm', 'apk',

@@ -26,7 +26,7 @@ final class ZipDirectory {
 	/**
 	 * The signature of a central directory file header.
 	 */
-	private const RECORD = "PK\x01\x02";
+	private const string RECORD = "PK\x01\x02";
 
 	/**
 	 * Names listed in the fragment, in order.

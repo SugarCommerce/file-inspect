@@ -40,12 +40,12 @@ final readonly class Inspector {
 	 * Every signature here is in the first few hundred bytes. The rest is
 	 * room for an archive small enough that its directory is in reach too.
 	 */
-	public const HEAD = 65536;
+	public const int HEAD = 65536;
 
 	/**
 	 * Content that is executable on some platform, whatever it is called.
 	 */
-	private const EXECUTABLE = array(
+	private const array EXECUTABLE = array(
 		"MZ"               => 'a Windows executable',
 		"\x7fELF"          => 'a Linux executable',
 		"\xfe\xed\xfa\xce" => 'a macOS executable',
@@ -64,7 +64,7 @@ final readonly class Inspector {
 	 *
 	 * @var array<string, string[]>
 	 */
-	private const EXPECTED = array(
+	private const array EXPECTED = array(
 		'pdf'  => array( '%PDF' ),
 		'zip'  => array( "PK\x03\x04", "PK\x05\x06" ),
 		'png'  => array( "\x89PNG" ),
