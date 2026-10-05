@@ -76,4 +76,55 @@ final class Filename {
 	public static function extension( string $filename ): string {
 		return mb_strtolower( (string) pathinfo( $filename, PATHINFO_EXTENSION ) );
 	}
+
+	/**
+	 * The name a stored file ends up with when somebody renames it, or ''
+	 * when what they typed will not do.
+	 *
+	 * The extension is kept whatever is typed. The file was inspected under
+	 * it, previews and players decide from it, and the computer it is
+	 * downloaded to opens it by it — so a rename from `.wav` to `.exe` would
+	 * be a different file as far as all three are concerned. Typing the
+	 * extension anyway is harmless: it is not doubled.
+	 *
+	 * What is typed is cleaned the way a filename needs:
+	 *
+	 *   - control characters, zero-width characters and direction overrides
+	 *     go — `Invoice\u{202E}fdp.exe` displays as `Invoiceexe.pdf`, and
+	 *     is how a name is made to lie about its extension;
+	 *   - runs of whitespace become one space;
+	 *   - slashes and backslashes become hyphens, because a name with a
+	 *     separator in it is a path to some unzip tools and save dialogs;
+	 *   - leading and trailing dots and spaces go: a leading dot hides a file,
+	 *     and Windows drops a trailing one.
+	 *
+	 * @since 1.1.0
+	 *
+	 * @param string $current The file's name now, whose extension is kept.
+	 * @param string $typed   What was typed, with or without the extension.
+	 * @param int    $max     Most characters in the result, extension
+	 *                        included. 255 is what file systems allow.
+	 *
+	 * @return string '' when nothing is left with a letter or digit in it.
+	 */
+	public static function rename( string $current, string $typed, int $max = 255 ): string {
+		$extension = pathinfo( $current, PATHINFO_EXTENSION );
+		$suffix    = '' === $extension ? '' : '.' . $extension;
+
+		$base = (string) preg_replace( '/[\x00-\x1F\x7F]|[\x{200B}-\x{200F}\x{202A}-\x{202E}\x{2060}-\x{2064}\x{FEFF}]/u', '', $typed );
+		$base = trim( (string) preg_replace( '/\s+/u', ' ', $base ) );
+		$base = str_replace( array( '/', '\\' ), '-', $base );
+
+		if ( '' !== $suffix && str_ends_with( mb_strtolower( $base ), mb_strtolower( $suffix ) ) ) {
+			$base = mb_substr( $base, 0, -mb_strlen( $suffix ) );
+		}
+
+		$base = trim( $base, ' .' );
+
+		if ( 1 !== preg_match( '/[\p{L}\p{N}]/u', $base ) ) {
+			return '';
+		}
+
+		return rtrim( mb_substr( $base, 0, max( 1, $max - mb_strlen( $suffix ) ) ), ' .' ) . $suffix;
+	}
 }
