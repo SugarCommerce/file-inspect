@@ -39,7 +39,7 @@ final class ZipDirectory {
 	 *                      thousands, and if the first hundred are clean a
 	 *                      person can look at the rest.
 	 *
-	 * @return string[]
+	 * @return list<string>
 	 */
 	public static function names( string $bytes, int $limit = 100 ): array {
 		$names  = array();
@@ -50,7 +50,7 @@ final class ZipDirectory {
 
 			// The name's length is 28 bytes past the signature, and the name
 			// itself begins 46 bytes past it.
-			$length = unpack( 'v', substr( $bytes, $at + 28, 2 ) . "\0\0" )[1] ?? 0;
+			$length = ord( $bytes[ $at + 28 ] ?? "\0" ) | ( ord( $bytes[ $at + 29 ] ?? "\0" ) << 8 );
 
 			if ( $length > 0 && $length < 4096 ) {
 				$names[] = substr( $bytes, $at + 46, $length );

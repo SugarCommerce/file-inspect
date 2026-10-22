@@ -108,6 +108,61 @@ final class InspectorTest extends TestCase {
 		$this->assertSame( 'ok', $this->scanner->scan( 'notes.txt', $this->central( 'setup.exe' ) )->state );
 	}
 
+	/**
+	 * Renaming a zip to something with no signature was the way past the
+	 * archive check: the bytes decide, not the name.
+	 */
+	public function test_a_zip_under_another_name_is_still_read_as_an_archive(): void {
+		$verdict = $this->scanner->scan( 'plugin.bin', "PK\x03\x04", $this->central( 'setup.exe' ) );
+
+		$this->assertSame( 'flagged', $verdict->state );
+		$this->assertSame( 'ok', $this->scanner->scan( 'book.epub', "PK\x03\x04", $this->central( 'OEBPS/ch1.xhtml' ) )->state, 'An epub is made of pages.' );
+	}
+
+	public function test_a_double_extension_inside_an_archive_is_flagged(): void {
+		$this->assertSame( 'flagged', $this->scanner->scan( 'plugin.zip', "PK\x03\x04", $this->central( 'docs/invoice.exe.pdf' ) )->state );
+		$this->assertSame( 'flagged', $this->scanner->scan( 'plugin.zip', "PK\x03\x04", $this->central( 'setup.exe .' ) )->state );
+		$this->assertSame( 'ok', $this->scanner->scan( 'plugin.zip', "PK\x03\x04", $this->central( 'docs/' ) )->state, 'A directory is not a file.' );
+	}
+
+	/**
+	 * The reason is shown to operators and uploaders; a member's name is the
+	 * uploader's to choose, so it arrives fit to escape.
+	 */
+	public function test_a_quoted_member_name_is_cleaned(): void {
+		$name    = "a\u{202E}b\x1b[31m\xff" . str_repeat( 'x', 300 ) . '.exe';
+		$verdict = $this->scanner->scan( 'plugin.zip', "PK\x03\x04", $this->central( $name ) );
+
+		$this->assertSame( 'flagged', $verdict->state );
+		$this->assertTrue( mb_check_encoding( $verdict->reason, 'UTF-8' ) );
+		$this->assertDoesNotMatchRegularExpression( '/[\x00-\x1F\x7F]|\x{202E}/u', $verdict->reason );
+		$this->assertLessThan( 200, mb_strlen( $verdict->reason ) );
+	}
+
+	/* ── pages ───────────────────────────────────────────────────────── */
+
+	/**
+	 * A browser that sniffs a page out of a file served without a type runs
+	 * its script in the host's origin.
+	 */
+	public function test_a_page_under_a_harmless_name_is_flagged(): void {
+		foreach ( array( "<!DOCTYPE html>\n<p>", "\xef\xbb\xbf  <HTML>", "\n<script>alert(1)</script>", '<svg xmlns="http://www.w3.org/2000/svg" onload="x()">' ) as $page ) {
+			$this->assertSame( 'flagged', $this->scanner->scan( 'notes.txt', $page )->state, $page );
+		}
+
+		$this->assertSame( 'flagged', $this->scanner->scan( 'data', '<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg"/>' )->state );
+	}
+
+	public function test_text_that_merely_mentions_markup_is_not_flagged(): void {
+		$this->assertSame( 'ok', $this->scanner->scan( 'notes.txt', 'Wrap it in <html> tags.' )->state );
+		$this->assertSame( 'ok', $this->scanner->scan( 'notes.txt', '<htmlish' )->state );
+		$this->assertSame( 'ok', $this->scanner->scan( 'feed.xml', '<?xml version="1.0"?><rss/>' )->state );
+	}
+
+	public function test_a_universal_binary_of_either_width_is_blocked(): void {
+		$this->assertSame( 'blocked', $this->scanner->scan( 'tool.zip', "\xca\xfe\xba\xbf" )->state );
+	}
+
 	/* ── filenames ───────────────────────────────────────────────────── */
 
 	public function test_a_suspect_filename_is_flagged_for_a_person_to_read(): void {
@@ -115,6 +170,11 @@ final class InspectorTest extends TestCase {
 
 		$this->assertSame( 'flagged', $verdict->state );
 		$this->assertTrue( $verdict->allowed() );
+	}
+
+	public function test_a_suspect_phrase_matches_in_any_case_and_an_empty_one_never(): void {
+		$this->assertSame( 'flagged', ( new Inspector( suspect: array( 'Get-Rich' ) ) )->scan( 'GET-RICH.pdf', '%PDF-1.4' )->state );
+		$this->assertSame( 'ok', ( new Inspector( suspect: array( '' ) ) )->scan( 'Guide.pdf', '%PDF-1.4' )->state );
 	}
 
 	public function test_an_ordinary_filename_is_not(): void {

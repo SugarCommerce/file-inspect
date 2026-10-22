@@ -21,6 +21,9 @@ namespace SugarCommerce\FileInspect;
 final readonly class Verdict {
 
 	/**
+	 * A verdict; made through {@see self::clean()}, {@see self::flagged()}
+	 * or {@see self::blocked()}.
+	 *
 	 * @param string $state  ok | flagged | blocked
 	 * @param string $reason What was found, in a sentence an operator can act
 	 *                       on and an uploader can be told.

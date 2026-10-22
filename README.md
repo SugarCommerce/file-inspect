@@ -16,8 +16,9 @@ This answers those from two ranged reads — the head and tail of an object — 
 
 - 🚫 **Executable signatures** — Windows, Linux, macOS and shell scripts, blocked whatever the name.
 - 🏷️ **Extension against contents** — PDF, zip, PNG, JPEG, GIF, MP3, WAV, FLAC, OGG, MP4/MOV/M4A, EPUB.
-- 🗜️ **Archive contents** — names read from the central directory, checked against your banned list.
-- 🔤 **Double extensions** — `invoice.pdf.exe` is refused on its name alone.
+- 🗜️ **Archive contents** — names read from the central directory of anything that is a zip, whatever it is called, and checked against your banned list the way an upload's name is.
+- 🌐 **Pages in disguise** — HTML or SVG a browser would sniff and run, in a `.txt` or a file with no extension, is flagged.
+- 🔤 **Double extensions** — `invoice.pdf.exe` is refused on its name alone, and so are `setup.exe .` (which Windows saves as `setup.exe`), `setup.exe:stream`, and names carrying a direction override.
 - ✏️ **Renames that cannot lie** — the stored extension is kept, and direction overrides, control characters and path separators are taken out of what was typed.
 - 🧑‍⚖️ **Three outcomes** — clean, flagged for a person, or blocked. Policy is yours: the banned extensions and the suspect phrases are constructor arguments.
 
@@ -69,11 +70,11 @@ Filename::rename( 'Midnight Drive - Master.wav', "evil\u{202E}vaw.exe" );  // 'e
 Filename::rename( 'Midnight Drive - Master.wav', '...' );                  // '' — refuse it
 ```
 
-The extension is the one the file was inspected under, so it stays whatever is typed: a rename from `.wav` to `.exe` would make it a different file to your previews, your players and the computer it is downloaded to. What is typed loses control characters, zero-width characters and direction overrides (`Invoice\u{202E}fdp.exe` *displays* as `Invoiceexe.pdf`), has its whitespace collapsed, its slashes turned into hyphens — a separator is a path to some unzip tools and save dialogs — and its leading and trailing dots and spaces trimmed. A name with no letter or digit left is `''`. The result is cut to 255 characters (or `$max`) before the extension, never through it.
+The extension is the one the file was inspected under, so it stays whatever is typed: a rename from `.wav` to `.exe` would make it a different file to your previews, your players and the computer it is downloaded to. What is typed loses control characters, zero-width characters, direction marks, overrides and isolates (`Invoice\u{202E}fdp.exe` *displays* as `Invoiceexe.pdf`), has its whitespace collapsed, its slashes turned into hyphens — a separator is a path to some unzip tools and save dialogs — along with the other characters Windows will not save (`: * ? " < > |`), and its leading and trailing dots and spaces trimmed. A device name Windows reserves (`CON`, `NUL`, `COM1` …) gets an underscore. A name with no letter or digit left is `''`. The result is cut to 255 characters (or `$max`) before the extension, never through it.
 
 ## What it does not do
 
-It is not a virus scanner. It does not look inside nested archives, decompress anything, or promise a flagged file is harmful or a clean one safe. It answers "is this what it claims, and is it the kind of thing we host" — cheaply, before a person has to.
+It is not a virus scanner. It does not look inside nested archives, decompress anything, catch a polyglot that carries a valid signature for its extension, or promise a flagged file is harmful or a clean one safe. A verdict's reason can quote a name from inside an archive: it comes back as valid UTF-8 with no control or direction characters, but escape it wherever you show it. It answers "is this what it claims, and is it the kind of thing we host" — cheaply, before a person has to.
 
 ## Testing
 
@@ -82,7 +83,7 @@ composer install
 composer test
 ```
 
-46 tests: executable signatures, extension against contents for every listed format, archive names from the central directory, double extensions, the three verdicts, and renames — kept and doubled extensions, overrides, separators, dots, scripts and lengths.
+69 tests: executable signatures, extension against contents for every listed format, pages under harmless names, archive names from the central directory however the archive is named, double extensions, trailing dots, streams and direction overrides, the three verdicts, and renames — kept and doubled extensions, overrides and isolates, separators and Windows-reserved characters and names, dots, scripts and lengths.
 
 ## License
 

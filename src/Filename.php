@@ -29,22 +29,58 @@ final class Filename {
 	 *
 	 * A sensible default for a host that serves files to strangers. HTML and
 	 * SVG are here because served from your own domain they execute script
-	 * in your origin.
+	 * in your origin; the PHP variants and `.htaccess` because an upload
+	 * that lands under a web root can be executed or reconfigure it.
+	 *
+	 * @var list<string>
 	 */
 	public const array EXECUTABLE = array(
-		'exe', 'scr', 'bat', 'cmd', 'com', 'msi', 'dll', 'cpl', 'jar',
-		'js', 'mjs', 'vbs', 'vbe', 'wsf', 'wsh', 'ps1', 'psm1',
+		'exe', 'scr', 'bat', 'cmd', 'com', 'msi', 'msp', 'dll', 'cpl', 'jar',
+		'pif', 'hta', 'lnk', 'reg', 'scf',
+		'js', 'jse', 'mjs', 'vbs', 'vbe', 'wsf', 'wsh', 'ps1', 'psm1',
 		'sh', 'bash', 'zsh', 'app', 'dmg', 'pkg', 'deb', 'rpm', 'apk',
-		'html', 'htm', 'svg', 'xhtml', 'phtml', 'php', 'php5', 'phar',
+		'html', 'htm', 'shtml', 'svg', 'svgz', 'xhtml', 'xht', 'xhtm', 'mht', 'mhtml',
+		'php', 'php3', 'php4', 'php5', 'php7', 'php8', 'phps', 'pht', 'phtm', 'phtml', 'phar',
+		'htaccess',
 	);
+
+	/**
+	 * Characters that are invisible, or that change the order the rest of a
+	 * name is displayed in: zero-width characters, direction marks,
+	 * embeddings, overrides and isolates, and the byte order mark.
+	 *
+	 * `Invoice\u{202E}fdp.exe` displays as `Invoiceexe.pdf`.
+	 */
+	private const string INVISIBLE = '[\x{061C}\x{180E}\x{200B}-\x{200F}\x{202A}-\x{202E}\x{2060}-\x{2069}\x{FEFF}]';
+
+	/**
+	 * The subset of {@see self::INVISIBLE} that reorders what follows it —
+	 * embeddings, overrides and isolates. A filename has no honest use for
+	 * one.
+	 */
+	private const string REORDERING = '[\x{202A}-\x{202E}\x{2066}-\x{2069}]';
+
+	/**
+	 * Names Windows reserves for devices, with or without an extension. A
+	 * file called `CON.wav` cannot be saved there at all.
+	 */
+	private const string RESERVED = '/^(CON|PRN|AUX|NUL|COM[0-9¹²³]|LPT[0-9¹²³])(?=\.|$)/iu';
 
 	/**
 	 * Why a filename is refused, or '' when it is acceptable.
 	 *
+	 * Each part between dots is compared with its surrounding whitespace
+	 * removed, since Windows drops trailing dots and spaces when it saves
+	 * a file — `setup.exe .` is saved as `setup.exe`. A colon separates a
+	 * part too, because on NTFS `setup.exe:x` is a stream of `setup.exe`.
+	 * A name carrying a direction override or isolate is refused outright:
+	 * it displays as something other than what it is.
+	 *
 	 * @since 1.0.0
 	 *
-	 * @param string   $filename The name as given.
-	 * @param string[] $banned   Extensions refused anywhere in the name.
+	 * @param string        $filename The name as given.
+	 * @param array<string> $banned   Extensions refused anywhere in the name,
+	 *                                in any case.
 	 *
 	 * @return string
 	 */
@@ -55,7 +91,16 @@ final class Filename {
 			return 'A filename is required.';
 		}
 
-		foreach ( explode( '.', mb_strtolower( $filename ) ) as $part ) {
+		if ( 1 === preg_match( '/' . self::REORDERING . '/u', $filename ) ) {
+			return 'The filename contains characters that change how it is displayed.';
+		}
+
+		$visible = (string) preg_replace( '/' . self::INVISIBLE . '/u', '', mb_strtolower( $filename ) );
+		$banned  = array_map( mb_strtolower( ... ), $banned );
+
+		foreach ( preg_split( '/[.:]/', $visible ) ?: array() as $part ) {
+			$part = (string) preg_replace( '/^[\s\p{Z}]+|[\s\p{Z}]+$/u', '', $part );
+
 			if ( in_array( $part, $banned, true ) ) {
 				return 'Files of type .' . $part . ' cannot be stored.';
 			}
@@ -89,14 +134,18 @@ final class Filename {
 	 *
 	 * What is typed is cleaned the way a filename needs:
 	 *
-	 *   - control characters, zero-width characters and direction overrides
-	 *     go — `Invoice\u{202E}fdp.exe` displays as `Invoiceexe.pdf`, and
-	 *     is how a name is made to lie about its extension;
+	 *   - control characters, zero-width characters, direction marks,
+	 *     overrides and isolates go — `Invoice\u{202E}fdp.exe` displays as
+	 *     `Invoiceexe.pdf`, and is how a name is made to lie about its
+	 *     extension;
 	 *   - runs of whitespace become one space;
 	 *   - slashes and backslashes become hyphens, because a name with a
-	 *     separator in it is a path to some unzip tools and save dialogs;
+	 *     separator in it is a path to some unzip tools and save dialogs, and
+	 *     so do the other characters Windows will not save (`: * ? " < > |`);
 	 *   - leading and trailing dots and spaces go: a leading dot hides a file,
-	 *     and Windows drops a trailing one.
+	 *     and Windows drops a trailing one;
+	 *   - a name Windows reserves for a device (`CON`, `NUL`, `COM1` …) gets
+	 *     an underscore, since it could not be saved there otherwise.
 	 *
 	 * @since 1.1.0
 	 *
@@ -111,9 +160,9 @@ final class Filename {
 		$extension = pathinfo( $current, PATHINFO_EXTENSION );
 		$suffix    = '' === $extension ? '' : '.' . $extension;
 
-		$base = (string) preg_replace( '/[\x00-\x1F\x7F]|[\x{200B}-\x{200F}\x{202A}-\x{202E}\x{2060}-\x{2064}\x{FEFF}]/u', '', $typed );
+		$base = (string) preg_replace( '/[\x00-\x1F\x7F]|' . self::INVISIBLE . '/u', '', $typed );
 		$base = trim( (string) preg_replace( '/\s+/u', ' ', $base ) );
-		$base = str_replace( array( '/', '\\' ), '-', $base );
+		$base = str_replace( array( '/', '\\', ':', '*', '?', '"', '<', '>', '|' ), '-', $base );
 
 		if ( '' !== $suffix && str_ends_with( mb_strtolower( $base ), mb_strtolower( $suffix ) ) ) {
 			$base = mb_substr( $base, 0, -mb_strlen( $suffix ) );
@@ -124,6 +173,8 @@ final class Filename {
 		if ( 1 !== preg_match( '/[\p{L}\p{N}]/u', $base ) ) {
 			return '';
 		}
+
+		$base = (string) preg_replace( self::RESERVED, '$1_', $base );
 
 		return rtrim( mb_substr( $base, 0, max( 1, $max - mb_strlen( $suffix ) ) ), ' .' ) . $suffix;
 	}

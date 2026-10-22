@@ -28,6 +28,15 @@ final class FilenameTest extends TestCase {
 			'a double extension'   => array( 'invoice.pdf.exe' ),
 			'a page in our origin' => array( 'readme.html' ),
 			'an svg'               => array( 'logo.svg' ),
+			// 1.2.0: what Windows saves as setup.exe, and an NTFS stream of it.
+			'a trailing dot'       => array( 'setup.exe .' ),
+			'trailing dots, spaces' => array( 'setup.exe. . ' ),
+			'a space in a part'    => array( 'invoice.exe .pdf' ),
+			'a stream'             => array( 'setup.exe:payload' ),
+			'a zero-width split'   => array( "setup.ex\u{200B}e" ),
+			'an hta'               => array( 'update.hta' ),
+			'a php variant'        => array( 'shell.php7' ),
+			'an htaccess'          => array( '.htaccess' ),
 		);
 	}
 
@@ -39,6 +48,19 @@ final class FilenameTest extends TestCase {
 	public function test_an_ordinary_name_is_accepted(): void {
 		$this->assertSame( '', Filename::refusal( 'Midnight Drive - Master.wav' ) );
 		$this->assertSame( '', Filename::refusal( 'stems.zip' ) );
+	}
+
+	/**
+	 * `photo\u{202E}gnp.pdf` displays as `photofdp.png`: a name that lies
+	 * about its type even when the real one is harmless.
+	 */
+	public function test_a_name_with_a_direction_override_is_refused(): void {
+		$this->assertNotSame( '', Filename::refusal( "photo\u{202E}gnp.pdf" ) );
+		$this->assertNotSame( '', Filename::refusal( "photo\u{2067}gnp.pdf" ), 'An isolate reorders too.' );
+	}
+
+	public function test_the_banned_list_is_matched_in_any_case(): void {
+		$this->assertNotSame( '', Filename::refusal( 'notes.txt', array( 'TXT' ) ) );
 	}
 
 	public function test_an_empty_name_is_refused(): void {
@@ -62,7 +84,13 @@ final class FilenameTest extends TestCase {
 			'extension in another case' => array( 'Final.WAV', 'Final.wav' ),
 			'a different extension'     => array( 'Final.exe', 'Final.exe.wav' ),
 			'a path'                    => array( '../../etc/passwd', '-..-etc-passwd.wav' ),
-			'a windows path'            => array( 'C:\\Music\\Final', 'C:-Music-Final.wav' ),
+			'a windows path'            => array( 'C:\\Music\\Final', 'C--Music-Final.wav' ),
+			'characters windows refuses' => array( 'What? "Final" <mix>|*', 'What- -Final- -mix---.wav' ),
+			'an isolate'                => array( "Invoice\u{2067}vaw.exe", 'Invoicevaw.exe.wav' ),
+			'an arabic letter mark'     => array( "Fi\u{061C}nal", 'Final.wav' ),
+			'a reserved device'         => array( 'CON', 'CON_.wav' ),
+			'a reserved device, dotted' => array( 'nul.tar', 'nul_.tar.wav' ),
+			'not quite reserved'        => array( 'Console', 'Console.wav' ),
 			'bidi override'             => array( "evil\u{202E}vaw.exe", 'evilvaw.exe.wav' ),
 			'zero-width space'          => array( "Fi\u{200B}nal", 'Final.wav' ),
 			'control characters'        => array( "Fi\x00nal\r\n", 'Final.wav' ),
